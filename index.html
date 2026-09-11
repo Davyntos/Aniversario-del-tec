@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>55 Aniversario | TecNM Pachuca</title>
+
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+    <aside class="sidebar">
+
+        <div class="logo">
+            <div class="logo-number">55</div>
+
+            <div>
+                <strong>TecNM Pachuca</strong>
+                <small>Contador de vueltas</small>
+            </div>
+        </div>
+
+        <nav>
+            <button class="nav-btn active" data-page="dashboard">
+                ⌂ Dashboard
+            </button>
+
+            <button class="nav-btn" data-page="equipos">
+                ◉ Equipos
+            </button>
+
+            <button class="nav-btn" data-page="registro">
+                ＋ Nuevo equipo
+            </button>
+
+            <button class="nav-btn" data-page="historial">
+                ◷ Historial
+            </button>
+        </nav>
+
+        <div class="connection-box">
+
+            <div class="connection-status">
+                <span id="serialDot" class="dot offline"></span>
+
+                <div>
+                    <strong id="serialText">
+                        Mega desconectada
+                    </strong>
+
+                    <small>
+                        Puerto USB
+                    </small>
+                </div>
+            </div>
+
+            <button id="btnConnect" class="btn primary full">
+                Conectar Mega
+            </button>
+
+        </div>
+
+    </aside>
+
+
+    <main class="content">
+
+        <header class="header">
+
+            <div>
+                <span class="tag">
+                    55 ANIVERSARIO
+                </span>
+
+                <h1>
+                    Carrera TecNM Pachuca
+                </h1>
+            </div>
+
+            <div class="header-actions">
+
+                <span id="eventStatus" class="event-status stopped">
+                    Evento detenido
+                </span>
+
+                <button id="btnEvent" class="btn success">
+                    Iniciar evento
+                </button>
+
+            </div>
+
+        </header>
+
+
+        <!-- DASHBOARD -->
+
+        <section id="dashboard" class="page active">
+
+            <div class="stats">
+
+                <article>
+                    <span>Equipos</span>
+                    <strong id="totalTeams">0</strong>
+                </article>
+
+                <article>
+                    <span>Participantes</span>
+                    <strong id="totalMembers">0</strong>
+                </article>
+
+                <article>
+                    <span>Vueltas</span>
+                    <strong id="totalLaps">0</strong>
+                </article>
+
+                <article>
+                    <span>Líder</span>
+                    <strong id="leaderName" class="small-value">-</strong>
+                </article>
+
+            </div>
+
+
+            <div class="dashboard-grid">
+
+                <article class="card scanner-card">
+
+                    <div class="card-title">
+                        <div>
+                            <span class="tag">
+                                RFID EN TIEMPO REAL
+                            </span>
+
+                            <h2>
+                                Última lectura
+                            </h2>
+                        </div>
+
+                        <div id="scannerPulse" class="scanner">
+                            <span></span>
+                        </div>
+                    </div>
+
+
+                    <div class="last-read">
+
+                        <small>
+                            Equipo detectado
+                        </small>
+
+                        <h3 id="lastTeam">
+                            Esperando ficha...
+                        </h3>
+
+                        <code id="lastUID">
+                            UID: -
+                        </code>
+
+                    </div>
+
+
+                    <div class="read-info">
+
+                        <div>
+                            <small>Vuelta</small>
+                            <strong id="lastLap">-</strong>
+                        </div>
+
+                        <div>
+                            <small>Hora</small>
+                            <strong id="lastTime">-</strong>
+                        </div>
+
+                    </div>
+
+
+                    <div id="readAlert" class="alert neutral">
+                        Conecta la Mega 2560 para comenzar.
+                    </div>
+
+                </article>
+
+
+                <article class="card">
+
+                    <div class="card-title">
+
+                        <div>
+                            <span class="tag">
+                                CLASIFICACIÓN
+                            </span>
+
+                            <h2>
+                                Posiciones
+                            </h2>
+                        </div>
+
+                    </div>
+
+                    <div id="ranking" class="ranking"></div>
+
+                </article>
+
+            </div>
+
+
+            <article class="card">
+
+                <div class="card-title">
+                    <div>
+                        <span class="tag">ACTIVIDAD</span>
+                        <h2>Últimas vueltas</h2>
+                    </div>
+                </div>
+
+                <div class="table-container">
+
+                    <table>
+
+                        <thead>
+                            <tr>
+                                <th>Equipo</th>
+                                <th>UID</th>
+                                <th>Vuelta</th>
+                                <th>Hora</th>
+                                <th>Tiempo</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="recentTable"></tbody>
+
+                    </table>
+
+                </div>
+
+            </article>
+
+        </section>
+
+
+        <!-- EQUIPOS -->
+
+        <section id="equipos" class="page">
+
+            <div class="section-header">
+
+                <div>
+                    <span class="tag">
+                        ADMINISTRACIÓN
+                    </span>
+
+                    <h2>
+                        Equipos registrados
+                    </h2>
+
+                    <p>
+                        Modifica nombre, integrantes o ficha cuando lo necesites.
+                    </p>
+                </div>
+
+                <button id="btnNewTeam" class="btn primary">
+                    + Nuevo equipo
+                </button>
+
+            </div>
+
+
+            <div id="teamsGrid" class="teams-grid"></div>
+
+        </section>
+
+
+        <!-- REGISTRO -->
+
+        <section id="registro" class="page">
+
+            <div class="form-grid">
+
+                <article class="card">
+
+                    <div class="card-title">
+                        <div>
+                            <span class="tag">EQUIPO</span>
+
+                            <h2 id="formTitle">
+                                Registrar equipo
+                            </h2>
+                        </div>
+                    </div>
+
+
+                    <form id="teamForm">
+
+                        <input id="teamId" type="hidden">
+
+
+                        <label>
+                            Nombre del equipo
+
+                            <input
+                                id="teamName"
+                                type="text"
+                                placeholder="Ej. TIC Runners"
+                                required
+                            >
+                        </label>
+
+
+                        <label>
+                            Número de integrantes
+
+                            <input
+                                id="teamMembers"
+                                type="number"
+                                min="1"
+                                value="1"
+                                required
+                            >
+                        </label>
+
+
+                        <label>
+                            Ficha RFID
+
+                            <div class="uid-group">
+
+                                <input
+                                    id="teamUID"
+                                    type="text"
+                                    placeholder="UID de la ficha"
+                                    required
+                                >
+
+                                <button
+                                    id="btnReadUID"
+                                    class="btn secondary"
+                                    type="button"
+                                >
+                                    Leer ficha
+                                </button>
+
+                            </div>
+                        </label>
+
+
+                        <div id="captureMessage" class="capture-message">
+                            Acerca la ficha al lector...
+                        </div>
+
+
+                        <div class="form-actions">
+
+                            <button class="btn primary" type="submit">
+                                Guardar equipo
+                            </button>
+
+                            <button
+                                id="btnCancel"
+                                class="btn ghost"
+                                type="button"
+                            >
+                                Cancelar
+                            </button>
+
+                        </div>
+
+                    </form>
+
+                </article>
+
+
+                <article class="card info-card">
+
+                    <span class="tag">
+                        FUNCIONAMIENTO
+                    </span>
+
+                    <h2>
+                        Una ficha por equipo
+                    </h2>
+
+                    <div class="steps">
+
+                        <div>
+                            <span>1</span>
+                            <p>Registra el equipo.</p>
+                        </div>
+
+                        <div>
+                            <span>2</span>
+                            <p>Asigna su ficha RFID.</p>
+                        </div>
+
+                        <div>
+                            <span>3</span>
+                            <p>Inicia el evento.</p>
+                        </div>
+
+                        <div>
+                            <span>4</span>
+                            <p>Cada lectura válida suma una vuelta.</p>
+                        </div>
+
+                    </div>
+
+                </article>
+
+            </div>
+
+        </section>
+
+
+        <!-- HISTORIAL -->
+
+        <section id="historial" class="page">
+
+            <article class="card">
+
+                <div class="card-title">
+
+                    <div>
+                        <span class="tag">
+                            HISTORIAL
+                        </span>
+
+                        <h2>
+                            Registro de vueltas
+                        </h2>
+                    </div>
+
+                    <button id="btnExport" class="btn secondary">
+                        Exportar CSV
+                    </button>
+
+                </div>
+
+
+                <div class="table-container">
+
+                    <table>
+
+                        <thead>
+
+                            <tr>
+                                <th>#</th>
+                                <th>Equipo</th>
+                                <th>UID</th>
+                                <th>Vuelta</th>
+                                <th>Fecha</th>
+                                <th>Hora</th>
+                                <th>Tiempo</th>
+                            </tr>
+
+                        </thead>
+
+                        <tbody id="historyTable"></tbody>
+
+                    </table>
+
+                </div>
+
+            </article>
+
+        </section>
+
+    </main>
+
+
+    <div id="toast" class="toast"></div>
+
+
+    <script src="app.js"></script>
+
+</body>
+
+</html>
