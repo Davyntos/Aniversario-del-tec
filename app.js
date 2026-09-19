@@ -8,6 +8,7 @@ const BAUD_RATE = 115200;
 // 800 ms evita dobles lecturas instantáneas sin perder vueltas rápidas.
 // El Arduino ya realiza su propio control de tarjetas repetidas.
 const MIN_READ_TIME = 800;
+const TARGET_LAPS = 55;
 
 
 // ============================================================
@@ -25,6 +26,17 @@ let laps =
 let eventRunning =
     JSON.parse(localStorage.getItem("tec55_event"))
     || false;
+
+let eventTiming =
+    JSON.parse(localStorage.getItem("tec55_event_timing"))
+    || {
+        startedAt: null,
+        accumulatedMs: 0
+    };
+
+if (eventRunning && !eventTiming.startedAt) {
+    eventTiming.startedAt = Date.now();
+}
 
 let port = null;
 let reader = null;
@@ -107,6 +119,11 @@ function save() {
     localStorage.setItem(
         "tec55_event",
         JSON.stringify(eventRunning)
+    );
+
+    localStorage.setItem(
+        "tec55_event_timing",
+        JSON.stringify(eventTiming)
     );
 
 }
@@ -839,11 +856,43 @@ function processLap(uid) {
             "-";
 
 
+        $("lastTotalTime").textContent =
+            "-";
+
+
         setAlert(
             "La ficha no está registrada.",
             "error"
         );
 
+
+        return;
+
+    }
+
+
+    const teamLapCount =
+        getTeamLaps(team.id).length;
+
+
+    if (teamLapCount >= TARGET_LAPS) {
+
+        $("lastTeam").textContent =
+            team.name;
+
+        $("lastLap").textContent =
+            `${TARGET_LAPS}/${TARGET_LAPS}`;
+
+        const finishData =
+            getTeamFinishData(team.id);
+
+        $("lastTotalTime").textContent =
+            formatDuration(finishData.totalTime);
+
+        setAlert(
+            `${team.name} ya completó las ${TARGET_LAPS} vueltas.`,
+            "success"
+        );
 
         return;
 
@@ -900,10 +949,19 @@ function processLap(uid) {
 function registerLap(team) {
 
     const teamLaps =
-        laps.filter(
-            l =>
-                l.teamId === team.id
+        getTeamLaps(team.id);
+
+
+    if (teamLaps.length >= TARGET_LAPS) {
+
+        setAlert(
+            `${team.name} ya completó las ${TARGET_LAPS} vueltas.`,
+            "success"
         );
+
+        return;
+
+    }
 
 
     const previous =
@@ -912,6 +970,51 @@ function registerLap(team) {
 
     const now =
         new Date();
+
+
+    const eventElapsed =
+        getEventElapsedMs();
+
+
+    let lapTime;
+
+
+    if (!previous) {
+
+        // Primera vuelta: tiempo desde que inició el evento.
+        lapTime = eventElapsed;
+
+    } else if (Number.isFinite(Number(previous.eventElapsed))) {
+
+        // Vueltas nuevas: diferencia dentro del reloj activo del evento.
+        lapTime = Math.max(
+            0,
+            eventElapsed - Number(previous.eventElapsed)
+        );
+
+    } else {
+
+        // Compatibilidad con registros antiguos que no tenían eventElapsed.
+        lapTime = Math.max(
+            0,
+            now.getTime() - Number(previous.timestamp || now.getTime())
+        );
+
+    }
+
+
+    const previousCumulative =
+        previous
+            ? getLapCumulativeTime(previous)
+            : 0;
+
+
+    const cumulativeTime =
+        previousCumulative + lapTime;
+
+
+    const lapNumber =
+        teamLaps.length + 1;
 
 
     const lap = {
@@ -932,22 +1035,19 @@ function registerLap(team) {
             getTeamCategory(team),
 
         lap:
-            teamLaps.length + 1,
+            lapNumber,
 
         timestamp:
             now.getTime(),
 
-        date:
-            now.toLocaleDateString(),
-
         time:
             now.toLocaleTimeString(),
 
-        lapTime:
-            previous
-                ? now.getTime() -
-                  previous.timestamp
-                : null
+        lapTime,
+
+        cumulativeTime,
+
+        eventElapsed
 
     };
 
@@ -965,22 +1065,46 @@ function registerLap(team) {
 
 
     $("lastLap").textContent =
-        lap.lap;
+        `${lap.lap}/${TARGET_LAPS}`;
 
 
     $("lastTime").textContent =
         lap.time;
 
 
-    setAlert(
-        `Vuelta ${lap.lap} registrada`,
-        "success"
-    );
+    $("lastTotalTime").textContent =
+        formatDuration(lap.cumulativeTime);
 
 
-    toast(
-        `${team.name} · Vuelta ${lap.lap}`
-    );
+    if (lap.lap === TARGET_LAPS) {
+
+        const position =
+            getFinishPosition(team);
+
+
+        setAlert(
+            `${team.name} completó las ${TARGET_LAPS} vueltas · Posición ${position}`,
+            "success"
+        );
+
+
+        toast(
+            `${team.name} llegó a la meta · Posición ${position}`
+        );
+
+    } else {
+
+        setAlert(
+            `Vuelta ${lap.lap} de ${TARGET_LAPS} registrada · Acumulado ${formatDuration(lap.cumulativeTime)}`,
+            "success"
+        );
+
+
+        toast(
+            `${team.name} · Vuelta ${lap.lap}/${TARGET_LAPS}`
+        );
+
+    }
 
 }
 
@@ -1335,8 +1459,26 @@ function resetForm() {
 
 $("btnEvent").onclick = () => {
 
-    eventRunning =
-        !eventRunning;
+    if (eventRunning) {
+
+        eventTiming.accumulatedMs =
+            getEventElapsedMs();
+
+        eventTiming.startedAt =
+            null;
+
+        eventRunning =
+            false;
+
+    } else {
+
+        eventTiming.startedAt =
+            Date.now();
+
+        eventRunning =
+            true;
+
+    }
 
 
     save();
@@ -1344,6 +1486,31 @@ $("btnEvent").onclick = () => {
     updateEvent();
 
 };
+
+
+function getEventElapsedMs() {
+
+    const accumulated =
+        Number(eventTiming?.accumulatedMs) || 0;
+
+
+    if (
+        eventRunning &&
+        eventTiming?.startedAt
+    ) {
+
+        return accumulated +
+            Math.max(
+                0,
+                Date.now() - Number(eventTiming.startedAt)
+            );
+
+    }
+
+
+    return accumulated;
+
+}
 
 
 function updateEvent() {
@@ -1495,7 +1662,7 @@ function renderTeamGroup(containerId, group, emptyMessage) {
 
                             <div>
                                 <span>Vueltas</span>
-                                <strong>${total}</strong>
+                                <strong>${Math.min(total, TARGET_LAPS)}/${TARGET_LAPS}</strong>
                             </div>
                         </div>
 
@@ -1528,24 +1695,39 @@ function renderTeamGroup(containerId, group, emptyMessage) {
 // RANKING
 // ============================================================
 
+function buildRanking() {
+
+    return teams.map(team => {
+
+        const finishData =
+            getTeamFinishData(team.id);
+
+
+        return {
+            ...team,
+            category:
+                getTeamCategory(team),
+            laps:
+                finishData.laps,
+            finished:
+                finishData.finished,
+            finishTimestamp:
+                finishData.finishTimestamp,
+            lastLapTimestamp:
+                finishData.lastLapTimestamp,
+            totalTime:
+                finishData.totalTime
+        };
+
+    });
+
+}
+
+
 function renderRanking() {
 
     const ranking =
-        teams
-            .map(
-                team => ({
-                    ...team,
-                    category:
-                        getTeamCategory(team),
-                    laps:
-                        laps.filter(
-                            lap =>
-                                lap.teamId === team.id
-                        ).length,
-                    lastLapTimestamp:
-                        getLastLapTimestamp(team.id)
-                })
-            );
+        buildRanking();
 
 
     const individualRanking =
@@ -1612,27 +1794,54 @@ function renderRankingGroup(containerId, ranking, emptyMessage) {
 
     container.innerHTML =
         ranking.map(
-            (team, index) => `
-                <div class="rank-row">
-                    <div class="rank-position">
-                        ${index + 1}
-                    </div>
+            (team, index) => {
 
-                    <div>
-                        <h4>
-                            ${escapeHTML(team.name)}
-                        </h4>
+                const rowClass =
+                    team.finished
+                        ? "rank-row finished"
+                        : "rank-row";
 
-                        <small>
-                            ${team.members} ${Number(team.members) === 1 ? "integrante" : "integrantes"}
-                        </small>
-                    </div>
 
-                    <div class="rank-laps">
-                        ${team.laps}
+                const positionClass =
+                    team.finished
+                        ? "rank-position finished-position"
+                        : "rank-position";
+
+
+                const statusText =
+                    team.finished
+                        ? `META · ${formatDuration(team.totalTime)}`
+                        : `${Math.min(team.laps, TARGET_LAPS)}/${TARGET_LAPS} · ${formatDuration(team.totalTime)}`;
+
+
+                return `
+                    <div class="${rowClass}">
+                        <div class="${positionClass}">
+                            ${index + 1}
+                        </div>
+
+                        <div>
+                            <h4>
+                                ${escapeHTML(team.name)}
+                            </h4>
+
+                            <small>
+                                ${team.members} ${Number(team.members) === 1 ? "integrante" : "integrantes"}
+                            </small>
+                        </div>
+
+                        <div class="rank-result">
+                            <strong>
+                                ${team.finished ? "55/55" : `${Math.min(team.laps, TARGET_LAPS)}/55`}
+                            </strong>
+                            <small class="${team.finished ? "finish-label" : ""}">
+                                ${statusText}
+                            </small>
+                        </div>
                     </div>
-                </div>
-            `
+                `;
+
+            }
         )
         .join("");
 
@@ -1641,35 +1850,154 @@ function renderRankingGroup(containerId, ranking, emptyMessage) {
 
 function compareRanking(a, b) {
 
+    // Primero van todos los que ya terminaron las 55 vueltas.
+    // Entre finalizados, manda estrictamente el orden de llegada.
+    if (a.finished && b.finished) {
+        return a.finishTimestamp - b.finishTimestamp;
+    }
+
+
+    if (a.finished !== b.finished) {
+        return a.finished ? -1 : 1;
+    }
+
+
+    // Mientras no hayan terminado, se ordenan por número de vueltas.
     if (b.laps !== a.laps) {
         return b.laps - a.laps;
     }
 
 
-    // Si ambos tienen las mismas vueltas, queda arriba quien
-    // completó su última vuelta primero.
+    // En empate temporal queda arriba quien completó su última vuelta primero.
     return a.lastLapTimestamp - b.lastLapTimestamp;
 
 }
 
 
-function getLastLapTimestamp(teamId) {
+function getTeamLaps(teamId) {
+
+    return laps
+        .filter(
+            lap =>
+                lap.teamId === teamId
+        )
+        .sort(
+            (a, b) =>
+                Number(a.timestamp) - Number(b.timestamp)
+        );
+
+}
+
+
+function getLapCumulativeTime(lap) {
+
+    const stored =
+        Number(lap?.cumulativeTime);
+
+
+    if (Number.isFinite(stored) && stored >= 0) {
+        return stored;
+    }
+
 
     const teamLaps =
-        laps
+        getTeamLaps(lap.teamId);
+
+
+    let total = 0;
+
+
+    for (const item of teamLaps) {
+
+        const lapTime =
+            Number(item.lapTime);
+
+
+        if (Number.isFinite(lapTime) && lapTime > 0) {
+            total += lapTime;
+        }
+
+
+        if (item.id === lap.id) {
+            break;
+        }
+
+    }
+
+
+    return total;
+
+}
+
+
+function getTeamFinishData(teamId) {
+
+    const teamLaps =
+        getTeamLaps(teamId);
+
+
+    const validLaps =
+        teamLaps.slice(0, TARGET_LAPS);
+
+
+    const finishLap =
+        validLaps.length >= TARGET_LAPS
+            ? validLaps[TARGET_LAPS - 1]
+            : null;
+
+
+    const lastLap =
+        validLaps.at(-1);
+
+
+    return {
+        laps:
+            validLaps.length,
+        finished:
+            Boolean(finishLap),
+        finishTimestamp:
+            finishLap
+                ? Number(finishLap.timestamp)
+                : Number.MAX_SAFE_INTEGER,
+        lastLapTimestamp:
+            lastLap
+                ? Number(lastLap.timestamp)
+                : Number.MAX_SAFE_INTEGER,
+        totalTime:
+            lastLap
+                ? getLapCumulativeTime(lastLap)
+                : 0
+    };
+
+}
+
+
+function getFinishPosition(team) {
+
+    const category =
+        getTeamCategory(team);
+
+
+    const finished =
+        buildRanking()
             .filter(
-                lap =>
-                    lap.teamId === teamId
+                item =>
+                    item.category === category &&
+                    item.finished
             )
-            .sort(
-                (a, b) =>
-                    b.timestamp - a.timestamp
-            );
+            .sort(compareRanking);
 
 
-    return teamLaps.length
-        ? teamLaps[0].timestamp
-        : Number.MAX_SAFE_INTEGER;
+    const index =
+        finished.findIndex(
+            item =>
+                item.id === team.id
+        );
+
+
+    return index >= 0
+        ? index + 1
+        : finished.length;
 
 }
 
@@ -1684,10 +2012,11 @@ function renderTables() {
         [...laps]
             .sort(
                 (a, b) =>
-                    b.timestamp - a.timestamp
+                    Number(b.timestamp) - Number(a.timestamp)
             );
 
 
+    // El dashboard conserva únicamente las 8 lecturas más recientes.
     $("recentTable").innerHTML =
         ordered
             .slice(0, 8)
@@ -1713,52 +2042,109 @@ function renderTables() {
                                 </span>
                             </td>
                             <td>${escapeHTML(lap.uid)}</td>
-                            <td>${lap.lap}</td>
-                            <td>${lap.time}</td>
+                            <td>${Math.min(Number(lap.lap) || 0, TARGET_LAPS)}/${TARGET_LAPS}</td>
+                            <td>${lap.time || "-"}</td>
                             <td>${formatDuration(lap.lapTime)}</td>
+                            <td>${formatDuration(getLapCumulativeTime(lap))}</td>
                         </tr>
                     `;
 
                 }
             )
             .join("");
+
+
+    // HISTORIAL COMPACTO:
+    // una sola fila por equipo. Cuando registra otra vuelta,
+    // la fila se actualiza en lugar de agregar otra al historial.
+    const compactHistory =
+        getCompactHistory();
 
 
     $("historyTable").innerHTML =
-        ordered
-            .map(
-                (lap, index) => {
+        compactHistory.length
+            ? compactHistory
+                .map(
+                    (item, index) => {
 
-                    const category =
-                        getLapCategory(lap);
-
-
-                    const categoryClass =
-                        category === "Individual"
-                            ? "individual"
-                            : "relay";
+                        const categoryClass =
+                            item.category === "Individual"
+                                ? "individual"
+                                : "relay";
 
 
-                    return `
-                        <tr>
-                            <td>${ordered.length - index}</td>
-                            <td>${escapeHTML(lap.teamName)}</td>
-                            <td>
-                                <span class="table-category ${categoryClass}">
-                                    ${category}
-                                </span>
-                            </td>
-                            <td>${escapeHTML(lap.uid)}</td>
-                            <td>${lap.lap}</td>
-                            <td>${lap.date}</td>
-                            <td>${lap.time}</td>
-                            <td>${formatDuration(lap.lapTime)}</td>
-                        </tr>
-                    `;
+                        return `
+                            <tr>
+                                <td>${index + 1}</td>
+                                <td>${escapeHTML(item.team.name)}</td>
+                                <td>
+                                    <span class="table-category ${categoryClass}">
+                                        ${item.category}
+                                    </span>
+                                </td>
+                                <td>${escapeHTML(item.team.uid)}</td>
+                                <td>${Math.min(Number(item.latestLap.lap) || 0, TARGET_LAPS)}</td>
+                                <td>${item.latestLap.time || "-"}</td>
+                                <td>${formatDuration(item.latestLap.lapTime)}</td>
+                                <td>${formatDuration(getLapCumulativeTime(item.latestLap))}</td>
+                            </tr>
+                        `;
 
-                }
-            )
-            .join("");
+                    }
+                )
+                .join("")
+            : `
+                <tr>
+                    <td colspan="8">Aún no hay equipos con vueltas registradas.</td>
+                </tr>
+            `;
+
+}
+
+
+function getCompactHistory(category = null) {
+
+    return teams
+        .map(team => {
+
+            const teamLaps =
+                getTeamLaps(team.id);
+
+
+            const latestLap =
+                teamLaps.at(-1);
+
+
+            if (!latestLap) {
+                return null;
+            }
+
+
+            return {
+                team,
+                latestLap,
+                category: getTeamCategory(team)
+            };
+
+        })
+        .filter(Boolean)
+        .filter(
+            item =>
+                !category || item.category === category
+        )
+        .sort((a, b) => {
+
+            // En la vista general mostramos primero Individuales
+            // y después Relevos. Dentro de cada categoría,
+            // el equipo actualizado más recientemente aparece arriba.
+            if (!category && a.category !== b.category) {
+                return a.category === "Individual" ? -1 : 1;
+            }
+
+
+            return Number(b.latestLap.timestamp) - Number(a.latestLap.timestamp);
+
+        });
 
 }
 
@@ -1783,13 +2169,17 @@ function renderStats() {
 
 
     $("totalLaps").textContent =
-        laps.length;
+        teams.reduce(
+            (total, team) =>
+                total + Math.min(getTeamLaps(team.id).length, TARGET_LAPS),
+            0
+        );
 
 }
 
 
 // ============================================================
-// EXPORTAR CSV
+// EXPORTAR EXCEL
 // ============================================================
 
 $("btnExport").onclick = () => {
@@ -1805,101 +2195,151 @@ $("btnExport").onclick = () => {
     }
 
 
-    const rows = [
+    if (typeof XLSX === "undefined") {
 
+        alert(
+            "No se pudo cargar la librería de Excel. Revisa tu conexión a Internet y vuelve a intentar."
+        );
+
+        return;
+
+    }
+
+
+    const workbook =
+        XLSX.utils.book_new();
+
+
+    // Excel compacto: una fila por equipo y una hoja por categoría.
+    appendCompactHistorySheet(
+        workbook,
+        "Individuales",
+        "Individual"
+    );
+
+
+    appendCompactHistorySheet(
+        workbook,
+        "Relevos",
+        "Relevos"
+    );
+
+
+    XLSX.writeFile(
+        workbook,
+        "resultados_55_aniversario.xlsx"
+    );
+
+
+    toast(
+        "Excel exportado correctamente"
+    );
+
+};
+
+
+function appendCompactHistorySheet(workbook, sheetName, category) {
+
+    const compactRows =
+        getCompactHistory(category);
+
+
+    const rows = [
         [
+            "#",
             "Equipo",
             "Categoría",
             "UID",
             "Vuelta",
-            "Fecha",
             "Hora",
-            "Tiempo"
+            "Tiempo vuelta",
+            "Acumulado"
         ],
-
-        ...laps.map(
-            lap => [
-
-                lap.teamName,
-
-                getLapCategory(lap),
-
-                lap.uid,
-
-                lap.lap,
-
-                lap.date,
-
-                lap.time,
-
-                formatDuration(
-                    lap.lapTime
-                )
-
+        ...compactRows.map(
+            (item, index) => [
+                index + 1,
+                item.team.name,
+                item.category,
+                item.team.uid,
+                Math.min(Number(item.latestLap.lap) || 0, TARGET_LAPS),
+                item.latestLap.time || "-",
+                formatDuration(item.latestLap.lapTime),
+                formatDuration(getLapCumulativeTime(item.latestLap))
             ]
         )
-
     ];
 
 
-    const csv =
-        rows
-            .map(
-                row =>
-                    row
-                        .map(value => {
-
-                            const text =
-                                String(value)
-                                    .replace(/"/g, '""');
+    const sheet =
+        XLSX.utils.aoa_to_sheet(rows);
 
 
-                            return `"${text}"`;
-
-                        })
-                        .join(",")
-            )
-            .join("\n");
-
-
-    const blob =
-        new Blob(
-            [csv],
-            {
-                type:
-                    "text/csv;charset=utf-8"
-            }
-        );
+    configureSheet(
+        sheet,
+        [6, 24, 16, 18, 12, 14, 18, 20],
+        rows.length,
+        8
+    );
 
 
-    const url =
-        URL.createObjectURL(blob);
+    XLSX.utils.book_append_sheet(
+        workbook,
+        sheet,
+        sheetName
+    );
+
+}
 
 
-    const link =
-        document.createElement("a");
+function configureSheet(sheet, widths, rowCount, columnCount) {
+
+    sheet["!cols"] =
+        widths.map(wch => ({ wch }));
 
 
-    link.href =
-        url;
+    if (rowCount > 0 && columnCount > 0) {
+
+        sheet["!autofilter"] = {
+            ref: `A1:${columnLetter(columnCount)}${rowCount}`
+        };
+
+    }
 
 
-    link.download =
-        "vueltas_55_aniversario.csv";
+    sheet["!freeze"] = {
+        xSplit: 0,
+        ySplit: 1,
+        topLeftCell: "A2",
+        activePane: "bottomLeft",
+        state: "frozen"
+    };
+
+}
 
 
-    document.body.appendChild(link);
+function columnLetter(number) {
+
+    let result = "";
+    let value = number;
 
 
-    link.click();
+    while (value > 0) {
+
+        const remainder =
+            (value - 1) % 26;
+
+        result =
+            String.fromCharCode(65 + remainder) + result;
+
+        value =
+            Math.floor((value - 1) / 26);
+
+    }
 
 
-    link.remove();
+    return result;
 
-
-    URL.revokeObjectURL(url);
-
-};
+}
 
 
 // ============================================================
@@ -1959,44 +2399,36 @@ function normalizeUID(uid = "") {
 
 function formatDuration(ms) {
 
-    if (!ms) {
+    const value =
+        Number(ms);
 
+
+    if (!Number.isFinite(value) || value <= 0) {
         return "-";
-
     }
 
 
-    const seconds =
-        Math.floor(
-            ms / 1000
-        );
+    const totalSeconds =
+        Math.floor(value / 1000);
+
+
+    const hours =
+        Math.floor(totalSeconds / 3600);
 
 
     const minutes =
-        Math.floor(
-            seconds / 60
-        );
+        Math.floor((totalSeconds % 3600) / 60);
 
 
-    const remaining =
-        seconds % 60;
+    const seconds =
+        totalSeconds % 60;
 
 
-    return (
-        String(minutes)
-            .padStart(
-                2,
-                "0"
-            )
-        +
-        ":"
-        +
-        String(remaining)
-            .padStart(
-                2,
-                "0"
-            )
-    );
+    return [hours, minutes, seconds]
+        .map(value =>
+            String(value).padStart(2, "0")
+        )
+        .join(":");
 
 }
 

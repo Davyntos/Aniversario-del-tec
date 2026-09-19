@@ -1208,3 +1208,95 @@ input:focus {
         align-items: flex-start;
     }
 }
+
+/* ============================================================
+   ACTUALIZACIÓN: META 55, TIEMPOS Y SCROLL DE CLASIFICACIÓN
+   ============================================================ */
+
+.read-info {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* Muestra aproximadamente 5 posiciones y, a partir de la sexta,
+   permite navegar con scroll sin hacer crecer la tarjeta. */
+.ranking {
+    max-height: 305px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(98,161,255,.45) rgba(255,255,255,.04);
+}
+
+.ranking::-webkit-scrollbar {
+    width: 7px;
+}
+
+.ranking::-webkit-scrollbar-track {
+    background: rgba(255,255,255,.035);
+    border-radius: 999px;
+}
+
+.ranking::-webkit-scrollbar-thumb {
+    background: rgba(98,161,255,.45);
+    border-radius: 999px;
+}
+
+.rank-row {
+    min-height: 54px;
+}
+
+.rank-row.finished {
+    border: 1px solid rgba(39,210,149,.18);
+    background: rgba(39,210,149,.055);
+}
+
+.rank-position.finished-position {
+    color: #74e5be;
+}
+
+.rank-result {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    white-space: nowrap;
+}
+
+.rank-result strong {
+    color: #61a3ff;
+    font-size: 15px;
+    font-weight: 900;
+}
+
+.rank-result small {
+    color: var(--muted);
+    font-size: 9px;
+}
+
+.rank-row.finished .rank-result strong {
+    color: #74e5be;
+}
+
+.finish-label {
+    color: #74e5be;
+    font-weight: 800;
+}
+
+.team-data {
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+}
+
+.table-container table {
+    min-width: 820px;
+}
+
+@media(max-width: 700px) {
+    .read-info {
+        grid-template-columns: 1fr;
+    }
+
+    .ranking {
+        max-height: 300px;
+    }
+}

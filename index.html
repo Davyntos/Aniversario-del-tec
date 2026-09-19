@@ -97,6 +97,10 @@
                             <small>Hora</small>
                             <strong id="lastTime">-</strong>
                         </div>
+                        <div>
+                            <small>Tiempo acumulado</small>
+                            <strong id="lastTotalTime">-</strong>
+                        </div>
                     </div>
 
                     <div id="readAlert" class="alert neutral">Conecta la Mega 2560 para comenzar.</div>
@@ -114,7 +118,7 @@
                         <div class="ranking-group">
                             <div class="ranking-heading">
                                 <span class="category-badge individual">Individuales</span>
-                                <small>1 integrante</small>
+                                <small>Meta: 55 vueltas</small>
                             </div>
                             <div id="individualRanking" class="ranking"></div>
                         </div>
@@ -122,7 +126,7 @@
                         <div class="ranking-group">
                             <div class="ranking-heading">
                                 <span class="category-badge relay">Relevos</span>
-                                <small>2 o más integrantes</small>
+                                <small>Meta: 55 vueltas</small>
                             </div>
                             <div id="relayRanking" class="ranking"></div>
                         </div>
@@ -147,7 +151,8 @@
                                 <th>UID</th>
                                 <th>Vuelta</th>
                                 <th>Hora</th>
-                                <th>Tiempo</th>
+                                <th>Tiempo vuelta</th>
+                                <th>Acumulado</th>
                             </tr>
                         </thead>
                         <tbody id="recentTable"></tbody>
@@ -240,7 +245,7 @@
                         <div><span>2</span><p>Asigna su ficha RFID.</p></div>
                         <div><span>3</span><p>La categoría se asigna por número de integrantes.</p></div>
                         <div><span>4</span><p>Inicia el evento.</p></div>
-                        <div><span>5</span><p>Cada lectura válida suma una vuelta.</p></div>
+                        <div><span>5</span><p>Cada lectura válida suma una vuelta hasta llegar a 55.</p></div>
                     </div>
                 </article>
             </div>
@@ -252,9 +257,9 @@
                 <div class="card-title">
                     <div>
                         <span class="tag">HISTORIAL</span>
-                        <h2>Registro de vueltas</h2>
+                        <h2>Resumen actual por equipo</h2>
                     </div>
-                    <button id="btnExport" class="btn secondary">Exportar CSV</button>
+                    <button id="btnExport" class="btn secondary">Exportar Excel</button>
                 </div>
 
                 <div class="table-container">
@@ -266,9 +271,9 @@
                                 <th>Categoría</th>
                                 <th>UID</th>
                                 <th>Vuelta</th>
-                                <th>Fecha</th>
                                 <th>Hora</th>
-                                <th>Tiempo</th>
+                                <th>Tiempo vuelta</th>
+                                <th>Acumulado</th>
                             </tr>
                         </thead>
                         <tbody id="historyTable"></tbody>
@@ -279,6 +284,9 @@
     </main>
 
     <div id="toast" class="toast"></div>
+
+    <!-- Librería para generar un archivo .xlsx real con columnas separadas -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
