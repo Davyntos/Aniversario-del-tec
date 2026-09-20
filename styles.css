@@ -1300,3 +1300,69 @@ input:focus {
         max-height: 300px;
     }
 }
+
+/* ============================================================
+   CONTROLES DE CARRERA, CRONÓMETRO Y NÚMERO DE FICHA
+   ============================================================ */
+
+.header-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.event-clock {
+    min-width: 94px;
+    padding: 8px 12px;
+    border: 1px solid rgba(98,161,255,.2);
+    border-radius: 10px;
+    color: #8fc1ff;
+    background: rgba(40,120,240,.08);
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: .8px;
+    text-align: center;
+}
+
+.btn.danger-outline,
+.danger-outline {
+    color: #ff9099;
+    border: 1px solid rgba(255,89,103,.35);
+    background: rgba(255,89,103,.07);
+}
+
+.btn.danger-outline:hover,
+.danger-outline:hover {
+    color: white;
+    background: rgba(255,89,103,.18);
+}
+
+.last-read code {
+    display: block;
+}
+
+.last-read code + code {
+    margin-top: 4px;
+}
+
+.table-container table {
+    min-width: 940px;
+}
+
+@media(max-width: 700px) {
+    .header-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .header-actions .btn {
+        flex: 1 1 145px;
+    }
+
+    .event-clock,
+    .event-status {
+        flex: 1 1 auto;
+        text-align: center;
+    }
+}
+

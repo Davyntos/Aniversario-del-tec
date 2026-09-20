@@ -42,8 +42,11 @@
                 <h1>Carrera TecNM Pachuca</h1>
             </div>
             <div class="header-actions">
+                <span id="eventClock" class="event-clock">00:00:00</span>
                 <span id="eventStatus" class="event-status stopped">Evento detenido</span>
                 <button id="btnEvent" class="btn success">Iniciar evento</button>
+                <button id="btnResetRace" class="btn secondary">Reiniciar carrera</button>
+                <button id="btnClearRecords" class="btn danger-outline">Borrar registros</button>
             </div>
         </header>
 
@@ -85,7 +88,8 @@
                     <div class="last-read">
                         <small>Equipo detectado</small>
                         <h3 id="lastTeam">Esperando ficha...</h3>
-                        <code id="lastUID">UID: -</code>
+                        <code id="lastBib">Ficha #: -</code>
+                        <code id="lastUID">RFID: -</code>
                     </div>
 
                     <div class="read-info">
@@ -148,7 +152,8 @@
                             <tr>
                                 <th>Equipo</th>
                                 <th>Categoría</th>
-                                <th>UID</th>
+                                <th># Ficha</th>
+                                <th>RFID</th>
                                 <th>Vuelta</th>
                                 <th>Hora</th>
                                 <th>Tiempo vuelta</th>
@@ -221,9 +226,15 @@
                         </label>
 
                         <label>
+                            Número de ficha
+                            <input id="teamBib" type="text" placeholder="Ej. 025" required>
+                            <small class="form-help">Número visible o identificador asignado al participante/equipo.</small>
+                        </label>
+
+                        <label>
                             Ficha RFID
                             <div class="uid-group">
-                                <input id="teamUID" type="text" placeholder="UID de la ficha" required>
+                                <input id="teamUID" type="text" placeholder="UID de la ficha RFID" required>
                                 <button id="btnReadUID" class="btn secondary" type="button">Leer ficha</button>
                             </div>
                         </label>
@@ -242,7 +253,7 @@
                     <h2>Una ficha por equipo</h2>
                     <div class="steps">
                         <div><span>1</span><p>Registra el equipo.</p></div>
-                        <div><span>2</span><p>Asigna su ficha RFID.</p></div>
+                        <div><span>2</span><p>Asigna su número de ficha y su RFID.</p></div>
                         <div><span>3</span><p>La categoría se asigna por número de integrantes.</p></div>
                         <div><span>4</span><p>Inicia el evento.</p></div>
                         <div><span>5</span><p>Cada lectura válida suma una vuelta hasta llegar a 55.</p></div>
@@ -269,7 +280,8 @@
                                 <th>#</th>
                                 <th>Equipo</th>
                                 <th>Categoría</th>
-                                <th>UID</th>
+                                <th># Ficha</th>
+                                <th>RFID</th>
                                 <th>Vuelta</th>
                                 <th>Hora</th>
                                 <th>Tiempo vuelta</th>

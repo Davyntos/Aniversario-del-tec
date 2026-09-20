@@ -824,7 +824,7 @@ function extractUIDFromSerial(line = "") {
 function processLap(uid) {
 
     $("lastUID").textContent =
-        `UID: ${uid}`;
+        `RFID: ${uid}`;
 
 
     if (!eventRunning) {
@@ -852,6 +852,10 @@ function processLap(uid) {
             "Ficha desconocida";
 
 
+        $("lastBib").textContent =
+            "Ficha #: -";
+
+
         $("lastLap").textContent =
             "-";
 
@@ -869,6 +873,10 @@ function processLap(uid) {
         return;
 
     }
+
+
+    $("lastBib").textContent =
+        `Ficha #: ${team.bibNumber || "-"}`;
 
 
     const teamLapCount =
@@ -976,13 +984,26 @@ function registerLap(team) {
         getEventElapsedMs();
 
 
+    const teamStartElapsed =
+        getTeamStartElapsedMs(team);
+
+
+    const teamElapsed =
+        Math.max(
+            0,
+            eventElapsed - teamStartElapsed
+        );
+
+
     let lapTime;
 
 
     if (!previous) {
 
-        // Primera vuelta: tiempo desde que inició el evento.
-        lapTime = eventElapsed;
+        // Primera vuelta:
+        // - equipos registrados antes del inicio cuentan desde el inicio del evento;
+        // - equipos registrados cuando el evento ya llevaba tiempo cuentan desde su registro.
+        lapTime = teamElapsed;
 
     } else if (Number.isFinite(Number(previous.eventElapsed))) {
 
@@ -1047,7 +1068,9 @@ function registerLap(team) {
 
         cumulativeTime,
 
-        eventElapsed
+        eventElapsed,
+
+        teamElapsed
 
     };
 
@@ -1167,6 +1190,10 @@ $("teamForm").onsubmit = event => {
         );
 
 
+    const bibNumber =
+        $("teamBib").value.trim();
+
+
     const uid =
         normalizeUID(
             $("teamUID").value
@@ -1175,6 +1202,7 @@ $("teamForm").onsubmit = event => {
 
     if (
         !name ||
+        !bibNumber ||
         !uid ||
         members < 1
     ) {
@@ -1199,7 +1227,26 @@ $("teamForm").onsubmit = event => {
     if (duplicate) {
 
         alert(
-            `La ficha ya pertenece a "${duplicate.name}".`
+            `La ficha RFID ya pertenece a "${duplicate.name}".`
+        );
+
+        return;
+
+    }
+
+
+    const duplicateBib =
+        teams.find(
+            team =>
+                String(team.bibNumber || "").trim().toUpperCase() === bibNumber.toUpperCase() &&
+                team.id !== id
+        );
+
+
+    if (duplicateBib) {
+
+        alert(
+            `El número de ficha "${bibNumber}" ya pertenece a "${duplicateBib.name}".`
         );
 
         return;
@@ -1223,6 +1270,9 @@ $("teamForm").onsubmit = event => {
 
             team.members =
                 members;
+
+            team.bibNumber =
+                bibNumber;
 
             team.uid =
                 uid;
@@ -1267,7 +1317,15 @@ $("teamForm").onsubmit = event => {
 
             members,
 
+            bibNumber,
+
             uid,
+
+            // Marca desde qué tiempo activo del evento comienza a contar este equipo.
+            // Si se registró antes del evento será 0; si se registró tarde,
+            // no heredará el tiempo transcurrido antes de su alta.
+            startElapsedMs:
+                getEventElapsedMs(),
 
             createdAt:
                 Date.now()
@@ -1323,6 +1381,10 @@ window.editTeam = id => {
 
     $("teamMembers").value =
         team.members;
+
+
+    $("teamBib").value =
+        team.bibNumber || "";
 
 
     $("teamUID").value =
@@ -1431,6 +1493,10 @@ function resetForm() {
         1;
 
 
+    $("teamBib").value =
+        "";
+
+
     $("formTitle").textContent =
         "Registrar equipo";
 
@@ -1488,6 +1554,107 @@ $("btnEvent").onclick = () => {
 };
 
 
+// Reinicia la carrera sin borrar los equipos.
+// Se eliminan las vueltas porque sus tiempos dejarían de corresponder
+// con un cronómetro que vuelve a 00:00:00.
+$("btnResetRace").onclick = () => {
+
+    if (
+        !confirm(
+            "¿Reiniciar la carrera?\n\n" +
+            "El cronómetro volverá a 00:00:00 y se borrarán todas las vueltas registradas, " +
+            "pero se conservarán los equipos y sus fichas."
+        )
+    ) {
+        return;
+    }
+
+
+    eventRunning = false;
+
+    eventTiming = {
+        startedAt: null,
+        accumulatedMs: 0
+    };
+
+    laps = [];
+
+    lastReads = {};
+
+
+    teams.forEach(team => {
+        team.startElapsedMs = 0;
+    });
+
+
+    resetLastReadPanel();
+
+    save();
+
+    render();
+
+    toast(
+        "Carrera reiniciada · equipos conservados"
+    );
+
+};
+
+
+// Borra todos los registros guardados en este navegador.
+$("btnClearRecords").onclick = () => {
+
+    if (
+        !confirm(
+            "¿Borrar TODOS los registros del sistema?\n\n" +
+            "Se eliminarán equipos, números de ficha, RFID, vueltas y cronómetro. " +
+            "Esta acción no se puede deshacer."
+        )
+    ) {
+        return;
+    }
+
+
+    teams = [];
+
+    laps = [];
+
+    eventRunning = false;
+
+    eventTiming = {
+        startedAt: null,
+        accumulatedMs: 0
+    };
+
+    lastReads = {};
+
+    captureMode = false;
+
+
+    [
+        "tec55_teams",
+        "tec55_laps",
+        "tec55_event",
+        "tec55_event_timing"
+    ].forEach(key =>
+        localStorage.removeItem(key)
+    );
+
+
+    resetForm();
+
+    resetLastReadPanel();
+
+    render();
+
+    showPage("dashboard");
+
+    toast(
+        "Todos los registros fueron eliminados"
+    );
+
+};
+
+
 function getEventElapsedMs() {
 
     const accumulated =
@@ -1514,6 +1681,9 @@ function getEventElapsedMs() {
 
 
 function updateEvent() {
+
+    updateEventClock();
+
 
     if (eventRunning) {
 
@@ -1651,7 +1821,11 @@ function renderTeamGroup(containerId, group, emptyMessage) {
                         </h3>
 
                         <code>
-                            UID: ${escapeHTML(team.uid)}
+                            Ficha #: ${escapeHTML(team.bibNumber || "-")}
+                        </code>
+
+                        <code>
+                            RFID: ${escapeHTML(team.uid)}
                         </code>
 
                         <div class="team-data">
@@ -2041,6 +2215,7 @@ function renderTables() {
                                     ${category}
                                 </span>
                             </td>
+                            <td>${escapeHTML(getLapBibNumber(lap))}</td>
                             <td>${escapeHTML(lap.uid)}</td>
                             <td>${Math.min(Number(lap.lap) || 0, TARGET_LAPS)}/${TARGET_LAPS}</td>
                             <td>${lap.time || "-"}</td>
@@ -2082,6 +2257,7 @@ function renderTables() {
                                         ${item.category}
                                     </span>
                                 </td>
+                                <td>${escapeHTML(item.team.bibNumber || "-")}</td>
                                 <td>${escapeHTML(item.team.uid)}</td>
                                 <td>${Math.min(Number(item.latestLap.lap) || 0, TARGET_LAPS)}</td>
                                 <td>${item.latestLap.time || "-"}</td>
@@ -2095,7 +2271,7 @@ function renderTables() {
                 .join("")
             : `
                 <tr>
-                    <td colspan="8">Aún no hay equipos con vueltas registradas.</td>
+                    <td colspan="9">Aún no hay equipos con vueltas registradas.</td>
                 </tr>
             `;
 
@@ -2241,15 +2417,16 @@ $("btnExport").onclick = () => {
 function appendCompactHistorySheet(workbook, sheetName, category) {
 
     const compactRows =
-        getCompactHistory(category);
+        getExportHistory(category);
 
 
     const rows = [
         [
-            "#",
+            "Posición",
             "Equipo",
             "Categoría",
-            "UID",
+            "# Ficha",
+            "RFID",
             "Vuelta",
             "Hora",
             "Tiempo vuelta",
@@ -2260,6 +2437,7 @@ function appendCompactHistorySheet(workbook, sheetName, category) {
                 index + 1,
                 item.team.name,
                 item.category,
+                item.team.bibNumber || "-",
                 item.team.uid,
                 Math.min(Number(item.latestLap.lap) || 0, TARGET_LAPS),
                 item.latestLap.time || "-",
@@ -2276,9 +2454,9 @@ function appendCompactHistorySheet(workbook, sheetName, category) {
 
     configureSheet(
         sheet,
-        [6, 24, 16, 18, 12, 14, 18, 20],
+        [10, 24, 16, 12, 18, 12, 14, 18, 20],
         rows.length,
-        8
+        9
     );
 
 
@@ -2385,6 +2563,67 @@ function getLapCategory(lap) {
 }
 
 
+function getTeamStartElapsedMs(team) {
+
+    const value =
+        Number(team?.startElapsedMs);
+
+
+    return Number.isFinite(value) && value >= 0
+        ? value
+        : 0;
+
+}
+
+
+function getLapBibNumber(lap) {
+
+    const team =
+        teams.find(
+            item =>
+                item.id === lap.teamId
+        );
+
+
+    return team?.bibNumber || "-";
+
+}
+
+
+// Para Excel se usa el mismo criterio de clasificación:
+// finalizados primero y, entre ellos, estrictamente el orden de llegada.
+// Los que aún no terminan quedan después ordenados por vueltas.
+function getExportHistory(category) {
+
+    return buildRanking()
+        .filter(
+            team =>
+                team.category === category
+        )
+        .sort(compareRanking)
+        .map(team => {
+
+            const latestLap =
+                getTeamLaps(team.id).at(-1);
+
+
+            if (!latestLap) {
+                return null;
+            }
+
+
+            return {
+                team,
+                latestLap,
+                category: team.category
+            };
+
+        })
+        .filter(Boolean);
+
+}
+
+
 function normalizeUID(uid = "") {
 
     return uid
@@ -2429,6 +2668,89 @@ function formatDuration(ms) {
             String(value).padStart(2, "0")
         )
         .join(":");
+
+}
+
+
+function formatClock(ms) {
+
+    const value =
+        Math.max(
+            0,
+            Number(ms) || 0
+        );
+
+
+    const totalSeconds =
+        Math.floor(value / 1000);
+
+
+    const hours =
+        Math.floor(totalSeconds / 3600);
+
+
+    const minutes =
+        Math.floor((totalSeconds % 3600) / 60);
+
+
+    const seconds =
+        totalSeconds % 60;
+
+
+    return [hours, minutes, seconds]
+        .map(value =>
+            String(value).padStart(2, "0")
+        )
+        .join(":");
+
+}
+
+
+function updateEventClock() {
+
+    const clock =
+        $("eventClock");
+
+
+    if (!clock) {
+        return;
+    }
+
+
+    clock.textContent =
+        formatClock(
+            getEventElapsedMs()
+        );
+
+}
+
+
+function resetLastReadPanel() {
+
+    $("lastTeam").textContent =
+        "Esperando ficha...";
+
+    $("lastBib").textContent =
+        "Ficha #: -";
+
+    $("lastUID").textContent =
+        "RFID: -";
+
+    $("lastLap").textContent =
+        "-";
+
+    $("lastTime").textContent =
+        "-";
+
+    $("lastTotalTime").textContent =
+        "-";
+
+    setAlert(
+        connected
+            ? "Lector listo. Esperando una ficha RFID."
+            : "Conecta la Mega 2560 para comenzar.",
+        "neutral"
+    );
 
 }
 
@@ -2552,3 +2874,10 @@ function render() {
 // ============================================================
 
 render();
+
+// Mantiene visible el cronómetro del evento sin necesidad de registrar vueltas.
+setInterval(
+    updateEventClock,
+    250
+);
+
